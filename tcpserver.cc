@@ -2,7 +2,6 @@
 #include <iostream>
 #include <stdlib.h>
 #include <time.h>
-#include "globals.h"
 #include <cmath>
 #include <iterator>
 #include <algorithm>
@@ -10,6 +9,8 @@
 #include <sys/fcntl.h> // for non-blocking
 #include <sys/time.h> //FD_SET, FD_ISSET, FD_ZERO macros
 #include <sys/select.h>
+#include "packet.h"
+
 
 using namespace std;
 
@@ -74,7 +75,13 @@ void TCP_Server::test(){
             FD_CLR(m_serverFD, &readfds);
             recvfrom(m_serverFD, m_recvBuffer, MSS, 0, (struct sockaddr *)&m_clientInfo, &m_cliLen);
             // recvfrom(m_serverFD, m_recvBuffer, MSS, MSG_DONTWAIT, (struct sockaddr *)&m_clientInfo, &m_cliLen);
-            cout << m_recvBuffer << endl;
+            // cout << m_recvBuffer << endl;
+
+            Packet *pkt = new Packet(10,2,10, 1,1,1);
+            pkt->debug((uint8_t*)m_recvBuffer);
+            // Packet pkt = Packet();
+            // pkt.debug((uint8_t*)m_recvBuffer);
+            
             memset(m_recvBuffer, '\0', sizeof(m_sendBuffer));
             sendto(m_serverFD, "ACK", MSS, 0, (struct sockaddr *)&m_clientInfo, m_cliLen);
 

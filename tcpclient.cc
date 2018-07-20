@@ -41,7 +41,7 @@ void TCP_Client::UDP_send(){
 }
 
 void TCP_Client::test(){
-    char data[] = "testing";
+    // char data[] = "testing";
     // typedef struct {short x2;int x;} msgStruct;
     // typedef struct {int x;short x2;int y;short y2;} msgStruct;
     // typedef struct {int x;short x2;} msgStruct;
@@ -51,12 +51,17 @@ void TCP_Client::test(){
     cout << sizeof(msg) << endl;
     // msg.x = 5;
 
-    strcpy(m_sendBuffer, data);
+    Packet *pkt = new Packet(10, 10, 10, 1,1,1);    
+    pkt->m_packet = pkt->encode();
+
+    // strcpy(m_sendBuffer, data);
+    
 
     for (int i = 0; i < 3; ++i)
     {
         memset(m_sendBuffer, '\0', sizeof(m_sendBuffer));
-        strcpy(m_sendBuffer, data);
+        // strcpy(m_sendBuffer, data);
+        memcpy(m_sendBuffer, pkt->m_packet, sizeof(Packet));
         sendto(m_serverFD, m_sendBuffer, MSS, 0, (struct sockaddr *)&m_serverInfo, m_serverLen);
         
         memset(m_recvBuffer, '\0', sizeof(m_recvBuffer));

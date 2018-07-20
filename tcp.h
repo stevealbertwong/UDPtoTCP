@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <vector>
+#include "packet.h"
 
 /*************************************************************/
 // TCP stores tcp packets fields + recvfrom() + TCP reno
