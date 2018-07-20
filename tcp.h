@@ -10,15 +10,23 @@
 #include <sys/socket.h>
 #include <vector>
 
-// Abstract base TCP class
+/*************************************************************/
+// TCP stores tcp packets fields + recvfrom() + TCP reno
+//	1. packets fields: source dest ip + port + flags + ack/seq#
+//	2. recv_buffer, send_buffer 
+//	3. Reno: 
+/*************************************************************/
+
 class TCP {
 protected:
-    
+	
+	char m_recvBuffer[MSS];
+	char m_sendBuffer[MSS];    
+	
 	uint16_t m_port;
         
 	// TCP_Packet* m_packet;
-	char m_recvBuffer[MSS];
-	char m_sendBuffer[MSS];
+
 
     // Size of the data read from the socket
     int m_recvSize;
@@ -39,6 +47,10 @@ public:
 	// uint8_t* getSentPacket() { return m_sendBuffer; }
 };
 
+/*************************************************************/
+// SERVER
+//
+/*************************************************************/
 
 class TCP_Server: public TCP {
     
@@ -48,7 +60,7 @@ class TCP_Server: public TCP {
 	socklen_t m_cliLen = sizeof(m_clientInfo);
 	struct sockaddr_in m_serverInfo;
 	socklen_t m_serverLen = sizeof(m_serverInfo);    
-	int m_sockFD;
+	int m_serverFD;
 
 
 
@@ -62,18 +74,27 @@ public:
 	void UDP_send();
 
 	// Accessors
-	int getSocketFD() const { return m_sockFD; }
+	int getSocketFD() const { return m_serverFD; }
 	
 
 };
+
+/*************************************************************/
+//
+//
+/*************************************************************/
+
 
 
 class TCP_Client: public TCP {
     
 	std::string m_serverHost;    
+
 	struct sockaddr_in m_serverInfo;
 	socklen_t m_serverLen = sizeof(m_serverInfo);    
-	int m_sockFD;
+	int m_serverFD;
+
+
     // Expected sequence used based on previous + data size
 	// uint16_t m_expected_seq;
     // Buffer to hold written packets, to prevent re-writes
@@ -88,7 +109,7 @@ public:
 	void UDP_send();
 
 	// Accessors
-	int getSocketFD() const { return m_sockFD; }
+	int getSocketFD() const { return m_serverFD; }
 	std::string getServerHost() const { return m_serverHost; }
 
 };
