@@ -26,8 +26,22 @@ TCP_Client::TCP_Client(string serverHost, uint16_t serverPort)
 
 // UDP to TCP
 // TODO: handshake i.e. udp version of connect()
+// if(connect(remote_socket, servinfo->ai_addr, servinfo->ai_addrlen) <0)
 void TCP_Client::UDP_connect(){
+    
+    // setsocktopt() to return flag if itself fails
+    // also make send() return status code is it has been blocking over a period of time
+    // what if sliding window ??
 
+    // engineer + send SYN 
+
+    // receive SYN/ACK + timerout retransmit 
+    // => while loop keep listening to select
+    // timeout only implemented in recv w packets to resend ??
+
+    // send ACK
+    
+    // return 1,0,-1
 }
 
 

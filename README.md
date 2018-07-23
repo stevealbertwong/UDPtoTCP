@@ -36,14 +36,17 @@ Challenges
  raw dup packet actual construction as reference
 
 4. handshake implementation in accept(), connect() api
-
-
+	
+	send and receive timeout i.e. alert after => setsockopt() vs select()
+	server => select(), client => setsockopt()
 
 
 5. Reno FSM implementation in send(), recv() api
 
-6. TCP and Packet class design
+6. TCP and Packet class + data structure design
 	TCP: class => subclass
 	Packet: a class instead of struct => varities of packets construction needed
+
+	list vs vector vs map depending on data structure operations needs
 
 

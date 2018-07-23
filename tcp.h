@@ -59,6 +59,8 @@ class TCP_Server: public TCP {
 
 	struct sockaddr_in m_clientInfo;
 	socklen_t m_cliLen = sizeof(m_clientInfo);
+	int m_clientFD;
+
 	struct sockaddr_in m_serverInfo;
 	socklen_t m_serverLen = sizeof(m_serverInfo);    
 	int m_serverFD;

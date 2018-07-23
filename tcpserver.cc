@@ -41,7 +41,24 @@ void TCP_Server::UDP_listen(){
 
 // TODO: handshake i.e. UDP version of accept()
 void TCP_Server::UDP_accept(){
+    
+    // select() receive SYN => clientinfo + decode to check flag
+    // new thread for each new client socket ** 
+    // whenever recevie SYN new thread 
+    // => since needs to timer-block recv() ACK for SYN/ACK
+    // if successful, add client_fd to map<int, clientaddrinfo>, return client_fd to programmer
 
+    // engineer + reply SYN/ACK
+
+    // receive ACK => timeout retransmit version
+    
+    // return fd that indicates connection to recv() + send() !!
+    // fd == tcp status data structure => client addrinfo, last_seq
+    // socket(), map int fd to struct w client addrinfo etc.
+    // map used by recv(), send() so stay at tcp class
+    // but since key is non repeatable int 1 etc => vector<connection> O(1) access time
+    // both client and server side need such tcp status
+    
 }
 
 void TCP_Server::UDP_recv(){
@@ -49,6 +66,8 @@ void TCP_Server::UDP_recv(){
 }
 
 void TCP_Server::UDP_send(){
+
+    // given int fd, find corresponding clientinfo + tcp status
 
 }
 
