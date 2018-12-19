@@ -9,53 +9,167 @@
 
 using namespace std;
 
-TCP_Client::TCP_Client(string serverHost, uint16_t serverPort)
-: TCP(serverPort), m_serverHost(serverHost)
-{    
-    m_serverFD = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);    
-    
-    memset((char *)&m_serverInfo, 0, m_serverLen);
-    m_serverInfo.sin_family = AF_INET;
-    m_serverInfo.sin_port = htons(serverPort);
-    string hostname = serverHost;
-    if(serverHost == "localhost") { hostname = "127.0.0.1"; }    
-    inet_aton(hostname.c_str(), &m_serverInfo.sin_addr);
+/* socket() */
+TCP_Client::TCP_Client(string hostname, uint16_t server_port) : m_server_port(server_port){        
 
-    // client did not bind port => OS assign port to socket
+    // heap -> won't stack overflow
+    handshakes = new std::unordered_map<std::string, tcp_handshake>();
+    connections = new std::vector<tcp_connection>();
+
+    m_server_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP); // fd that reaches server    
+    memset((char *)&m_server_info, 0, m_server_len);
+    m_server_info.sin_family = AF_INET;
+    m_server_info.sin_port = htons(m_server_port);    
+    if(hostname == "localhost") { m_server_ip = "127.0.0.1"; }    
+    inet_aton(m_server_ip.c_str(), &m_server_info.sin_addr);    
+    
+    m_server_ip = inet_ntoa(m_server_info.sin_addr); // IP in string
+    // client socket did not bind port -> OS randomly assign port
 }
 
-// UDP to TCP
-// TODO: handshake i.e. udp version of connect()
-// if(connect(remote_socket, servinfo->ai_addr, servinfo->ai_addrlen) <0)
-void TCP_Client::UDP_connect(){
+// send SYN to server, record in handshakes
+void TCP_Client::send_SYN(sockaddr_in m_server_info){    
+    Packet syn_pkt = Packet(0,0,0,1,0,0);
+    // syn_pkt.debug();
+    // Packet fin_pkt = Packet(0,0,0,0,0,1);
+    // fin_pkt.debug();
+    // Packet syn_ack_pkt = Packet(0,0,0,1,1,0);
+    // syn_ack_pkt.debug();
+    // char test[] = "i love you";
+    // Packet test_pkt = Packet(test, sizeof(test));
+
+    // sendto(m_server_fd, syn_pkt.getPacket(), MSS, 0, (struct sockaddr *)&m_server_info, m_server_len);
+    sendto(m_server_fd, syn_pkt.getPacket(), syn_pkt.getEncodedSize(), 0, (struct sockaddr *)&m_server_info, m_server_len);
     
-    // setsocktopt() to return flag if itself fails
-    // also make send() return status code is it has been blocking over a period of time
-    // what if sliding window ??
+    tcp_handshake hs = tcp_handshake();    
+    hs.m_sockaddr = m_server_info;
+    hs.syned = true;    
+    
+    // handshakes->insert(std::pair<std::string, tcp_handshake>(inet_ntoa(m_server_info.sin_addr), hs));
+    handshakes->insert(make_pair(m_server_ip, hs));    
+}
 
-    // engineer + send SYN 
+// loop through handshakes to get serverinfo, resend SYN
+void TCP_Client::handshake_retransmit(){   
+    // cout << "handshake_retransmit " << endl; 
+    std::unordered_map<std::string, tcp_handshake>::iterator it;
+    for ( it = handshakes->begin(); it != handshakes->end(); it++ ){
+        send_SYN(it->second.m_sockaddr);
+    }
+}
 
-    // receive SYN/ACK + timerout retransmit 
+// send SYN to server, record in handshakes
+void TCP_Client::send_ACK(sockaddr_in m_server_info){    
+    Packet syn_pkt = Packet(0,0,0,0,0,1);
+    sendto(m_server_fd, syn_pkt.getPacket(), syn_pkt.getEncodedSize(), 0, (struct sockaddr *)&m_server_info, m_server_len);    
+}
+
+// if SYN ACK, delete handshakes, return true to create new fd
+bool TCP_Client::ifSYNACKPacket(Packet pkt, sockaddr_in m_server_info){    
+    cout << "server received SYN ACK packets : " << pkt.getFlag() << endl;
+    bool keyExist = (handshakes->find(inet_ntoa(m_server_info.sin_addr)) != handshakes->end());
+    
+    if((pkt.getFlag() == 6) && keyExist){
+        std::unordered_map<std::string, tcp_handshake>::iterator it;
+        for ( it = handshakes->begin(); it != handshakes->end(); it++ ){
+            // client has sent SYN before, remove server from handshakes, so no more retransmit
+            if(!strcmp((it->first.c_str()), inet_ntoa(m_server_info.sin_addr)) && it->second.syned) {                
+                handshakes->erase(inet_ntoa(m_server_info.sin_addr));     
+                send_ACK(m_server_info);
+                cout << "client successfully created connection and sent ACK. " << endl;                
+                return true;
+            }            
+        }
+        return true;
+    }    
+    // if not SYN ACK from SYNed server, return false to retransmit
+    return false; 
+}
+
+/* handshake !!
+if(connect(remote_socket, servinfo->ai_addr, servinfo->ai_addrlen) <0)*/
+int TCP_Client::TCP_connect(){
+    
+    send_SYN(m_server_info);
+
+    struct timeval tv;
+    tv.tv_sec = 1;
+    tv.tv_usec = 500000;
+    fd_set masterfds;
+    fd_set readfds; // working sets
+    FD_ZERO(&masterfds);
+    FD_ZERO(&readfds);
+    FD_SET(m_server_fd, &masterfds); // add server fd to master set
+
+    // make recv() return status code is it has been blocking over a period of time    
     // => while loop keep listening to select
     // timeout only implemented in recv w packets to resend ??
+    // receive SYN/ACK + timeout retransmit 
 
-    // send ACK
-    
-    // return 1,0,-1
+    while(1){            
+        
+        memcpy(&readfds, &masterfds, sizeof(masterfds));
+        // block for fixed time, check if receive any packets
+        int numPacketsReceived = select(m_server_fd + 1, &readfds, NULL, NULL, &tv);                
+
+        // if client receives SYN-ACK, check handshakes, send ACK packet
+        if (FD_ISSET(m_server_fd, &readfds)){ 
+            FD_CLR(m_server_fd, &readfds);
+
+            uint32_t recv_size = recvfrom(m_server_fd, m_recv_buffer, MSS, 0, (struct sockaddr *)&m_server_info, &m_server_len);
+            
+            // local variable since need copy by value, gone in next iteration
+            Packet recvd_pkt = Packet(m_recv_buffer, recv_size); // bytearray to packet so could call class methods
+            // recvd_pkt->debug((uint8_t*)m_recv_buffer);
+            memset(m_recv_buffer, '\0', sizeof(m_recv_buffer));
+            
+            if(ifSYNACKPacket(recvd_pkt, m_server_info)){
+                tcp_connection connection = tcp_connection();
+                connections->push_back(connection);                
+                
+                
+                // delete entry in map handshakes
+                return connections->size();  // fd as index of vector
+
+            } else {                
+                stored_data_packets.push_back(recvd_pkt); // TODO: deal w data packets from another client                
+                cout << "othr pcket handshake_retransmit" << endl;
+                handshake_retransmit();
+            }                                        
+        } else { // if timeout n receives no packet(numPacketsReceived == 0) or error(-1)
+            // FD_CLR(m_server_fd, &readfds);
+            cout << "timeout handshake_retransmit" << endl;
+            handshake_retransmit();             
+        }
+    }
 }
 
 
-void TCP_Client::UDP_recv(){
+// bool TCP_Client::TCP_recv(){
+//     // timeout + retransmit
+//     memset(m_recv_buffer, '\0', sizeof(m_recv_buffer));
+//     ssize_t recv_size = recvfrom(m_server_fd, m_recv_buffer, MSS, 0, (struct sockaddr *)&m_server_info, &m_server_len);
+//     if(recv_size == -1){ // if timeout
+//         // We have timed out based on the set timer on the socket        
+//         if(errno == EWOULDBLOCK){
+//         }
+//         return false; 
+//     } else { // check whether expected packet
+//     }
+//     return true;
+// }
 
-}
+
+// void TCP_Client::TCP_send(uint8_t byte_array){
+//     memset(m_send_buffer, '\0', sizeof(m_send_buffer));
+//     memcpy(m_send_buffer, byte_array, sizeof(Packet));
+//     sendto(m_server_fd, m_send_buffer, MSS, 0, (struct sockaddr *)&m_server_info, m_server_len);
+// }
 
 
-void TCP_Client::UDP_send(){
-
-}
 
 void TCP_Client::test(){
-    // char data[] = "testing";
+    char data[] = "testing";
     // typedef struct {short x2;int x;} msgStruct;
     // typedef struct {int x;short x2;int y;short y2;} msgStruct;
     // typedef struct {int x;short x2;} msgStruct;
@@ -66,21 +180,22 @@ void TCP_Client::test(){
     // msg.x = 5;
 
     Packet *pkt = new Packet(10, 10, 10, 1,1,1);    
-    pkt->m_packet = pkt->encode();
-
-    // strcpy(m_sendBuffer, data);
+    // pkt->m_packet = pkt->encode();
     
+    pkt->debug();
 
-    for (int i = 0; i < 3; ++i)
-    {
-        memset(m_sendBuffer, '\0', sizeof(m_sendBuffer));
-        // strcpy(m_sendBuffer, data);
-        memcpy(m_sendBuffer, pkt->m_packet, sizeof(Packet));
-        sendto(m_serverFD, m_sendBuffer, MSS, 0, (struct sockaddr *)&m_serverInfo, m_serverLen);
+    for (int i = 0; i < 3; ++i){
+        memset(m_send_buffer, '\0', sizeof(m_send_buffer));
         
-        memset(m_recvBuffer, '\0', sizeof(m_recvBuffer));
-        recvfrom(m_serverFD, m_recvBuffer, MSS, 0, (struct sockaddr *)&m_serverInfo, &m_serverLen);
-        cout << m_recvBuffer << endl;
+        strcpy(m_send_buffer, data);    
+        cout << m_send_buffer << endl;
+        
+        // memcpy(m_send_buffer, pkt->getPacket(), sizeof(Packet));
+        sendto(m_server_fd, m_send_buffer, MSS, 0, (struct sockaddr *)&m_server_info, m_server_len);
+        cout << "sent packets" << endl;
+        memset(m_recv_buffer, '\0', sizeof(m_recv_buffer));
+        recvfrom(m_server_fd, m_recv_buffer, MSS, 0, (struct sockaddr *)&m_server_info, &m_server_len);
+        cout << m_recv_buffer << endl;
     }
 
 }
