@@ -20,9 +20,8 @@ private:
 		uint16_t flag; // each flag occupy 1 bit -> 16 bits 16 flags
 	} m_header; // 8 bytes
 	void setFlag(bool syn, bool ack, bool fin) { m_header.flag |= (syn << 2) | (ack << 1) | fin;}
-	
-	std::vector<uint8_t> m_payload; 			
-	uint8_t *m_packet; // recv(), send() -> uint8_t byte array as arg
+				
+	uint8_t *m_packet; // whole packet -> recv(), send() w byte array	
 	uint32_t m_encoded_size; // size of m_header + size of m_payload
 
 public:	
@@ -34,16 +33,23 @@ public:
 	// Packet(Packet&& rhs); // move constructor, shallow copy
 	// Packet& operator=(const Packet& rhs); // assignment, copy to existing packet
 	~Packet();
-			
+	
 	uint16_t getSeq() {return m_header.seq;}
-	uint16_t getAck() {return m_header.ack;}
+	uint16_t getAck() {return m_header.ack;}	
 	uint16_t getWin() {return m_header.win;}
 	uint16_t getFlag() {return m_header.flag;}
 	uint32_t getEncodedSize() {return m_encoded_size;}
 	uint8_t *getPacket() {return m_packet;}
 
+	uint16_t setSeq(uint16_t seq_num) {return m_header.seq = seq_num;}		
+	// partitioned file stream -> packet struct's payload
+	void setPayload(char *data, ssize_t size) {m_payload = std::vector<uint8_t>(data, data+size);};
+	
+	void free_m_packet() {delete[] m_packet;}
 	uint8_t *encode(); // append m_payload to m_header, then typecast char* to uint8* 	
 	void debug();
+
+	std::vector<uint8_t> m_payload; // data 
 };
 #endif
 

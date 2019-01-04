@@ -106,6 +106,10 @@ private:
 	// TODO: should be struct of tcp not just client addr info
     // std::map<uint32_t, sockaddr_in> client_fd_map; // fd to client addr info
     
+	ssize_t m_ssthresh;
+	float m_cwnd;
+	uint8_t m_curr_mode = SS;
+
 public:
 	TCP_Server(uint16_t m_server_port); // register this process in OS as server
 	
@@ -114,7 +118,7 @@ public:
 	void TCP_listen();
 	int TCP_accept();
 	void TCP_recv();
-	void TCP_send();
+	void TCP_send(const char* filename);
 	
 	// helper		
 	void send_SYN_ACK(sockaddr_in m_client_info);	
@@ -167,6 +171,7 @@ public:
 	int get_socket_fd() const { return m_server_fd; }
 	std::string getm_server_ip() const { return m_server_ip; }
 
+	std::map<uint16_t, Packet> packets_in_sequence;
 };
 
 #endif // TCP_H

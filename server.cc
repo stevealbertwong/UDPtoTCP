@@ -11,7 +11,7 @@ int main(int argc, char const *argv[])
     int fd = tcpserver->TCP_accept();
 
     // tcpserver->TCP_send(fd, "file.txt");
-
+    tcpserver->TCP_send("test.data");
 
     delete tcpserver;
     return 0;

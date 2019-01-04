@@ -45,6 +45,7 @@ void TCP_Server::send_SYN_ACK(sockaddr_in m_client_info){
     Packet syn_ack_pkt = Packet(0,0,0,1,1,0);    
     sendto(m_server_fd, syn_ack_pkt.getPacket(), syn_ack_pkt.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);               
     cout << "client sent SYN ACK packets" << endl;
+    syn_ack_pkt.free_m_packet();
 }
 
 /* if timeout or checksum error, server only needs to retransmit outstanding ACK/SYN */
@@ -70,11 +71,13 @@ bool TCP_Server::ifSYNPacket(Packet pkt, sockaddr_in m_client_info){
         // handshakes->insert(make_pair(m_client_ip, hs));    
         
         send_SYN_ACK(m_client_info); 
-        
+                
         return true;
     } else {
         return false;
-    }
+    }    
+    // DONT FREE PACKET HERE, OTHERWISE FREE TWICE ??
+    pkt.free_m_packet();
 }
 
 /* if ACK, ++fd, delete outstanding packets */
@@ -90,6 +93,9 @@ bool TCP_Server::ifACKPacket(Packet pkt, sockaddr_in m_client_info){
                 
                 handshakes->erase(inet_ntoa(m_client_info.sin_addr));                        
                 tcp_connection connection = tcp_connection();
+                connection.m_sockaddr = m_client_info;
+                connection.m_socklen = sizeof(m_client_info);
+                connection.m_FD = connections->size() + 1;
                 connections->push_back(connection);
                 cout << "server received ACK packets and successfully created connection" << endl;
                 return true;
@@ -98,7 +104,9 @@ bool TCP_Server::ifACKPacket(Packet pkt, sockaddr_in m_client_info){
         return false; // no SYN recorded in handshakes, ignore packet
     } else { // not ACK
         return false;
-    }
+    }    
+    // DONT FREE PACKET HERE, OTHERWISE FREE TWICE ??
+    pkt.free_m_packet();
 }
 
 /* Handshake !!
@@ -161,6 +169,8 @@ int TCP_Server::TCP_accept(){
                 cout << "othr pcket handshake_retransmit" << endl;
                 handshake_retransmit();
             }
+            recvd_pkt.free_m_packet();
+
         } else { // if timeout n receives no packet(numPacketsReceived == 0) or error(-1)
             // FD_CLR(m_server_fd, &readfds);
             cout << "timeout handshake_retransmit" << endl;
@@ -170,9 +180,101 @@ int TCP_Server::TCP_accept(){
 }
 
 /*
-Tahoe congestion control - elastic sliding window
+1. helper functions
+    divide files into data packets + reconstruct back to file
+        divide file into data packets
+            seekg() + tellg() -> seq#
+            malloc() data packet only when send, free() when ACKed
+        packet constructor
+            memcpy() data packet to byte array, X c-style typecast
+        reconstruct back
+            parse data from byte array
+            append back to a file
+
+    fixed sliding window + selective retranmit/repeat
+    timer 
+        self implemented timer
+            gettimeofday()            
+            vector of packets, each has different timeout
+            for each packet that has timeout, resend packet
+        timer block
+            setsockopt() or select()
+            1 packet
+        non block
+            recvfrom(MSG_DONTWAIT)
+            1 packet
+
+2. Tahoe -> elastic sliding window + ssthresh 
+    2.a start as SS
+            random cwnd, ssthresh
+            send cwnd number of data packets, wait for ACKs
+    2.b SS 
+            if received ACKs, cwnd += MSS (MSS: max segment size, += MSS adds previous sent total number of packet size -> exponential increaseMSS: max segment size, += MSS adds previous sent total number of packet size -> exponential increase)
+            if cwnd > ssthresh 
+                SS -> CA
+            if 3 dup ACKs or timeout
+                remain SS
+                ssthread = cwnd/2
+                cwnd = 1
+                retransmit that lost packet
+        CA
+            if received ACKs, cwnd += 1
+            if 3 dup ACKs or timeout
+                CA -> SS
+                ssthread = cwnd/2
+                cwnd = 1
+                retransmit that lost packet
+            
+3. Reno -> elastic sliding window + ssthresh + 3 dup ACKs
 
 */
+
+void TCP_Server::TCP_send(const char* filename){
+
+    std::ifstream file(filename);
+    file.seekg(0, file.end); 
+    uint32_t total_file_bytes = file.tellg(); // current stream cursor position
+    file.seekg(0, file.beg); 
+
+    int total_data_packets = ceil((float)total_file_bytes/PACKET_SIZE);    
+    int ack = 0; // last ACK received
+    int seq = 0; // last data segment sent
+    ssize_t total_sent_bytes = 0;
+    
+    for(int i = 0; i < total_data_packets; i++){
+                
+        ssize_t remain_bytes = total_file_bytes - file.tellg(); // total bytes - cursor 
+        
+        // might not enough data to fill last data packet 
+        ssize_t data_packet_size;
+        
+        if(remain_bytes < PACKET_SIZE){ 
+            data_packet_size = remain_bytes;
+        } else {      
+            data_packet_size = PACKET_SIZE;
+        }
+        
+        char buffer[data_packet_size];
+        file.read(buffer, data_packet_size); // EACH READ(), CURSOR IS ADVANCED
+        cout << "file buffer : " << buffer << endl;
+        Packet data_packet = Packet(0,0,0,0,0,0); // init header to 0                                    
+        // data_packet.m_payload = std::vector<uint8_t>(buffer, buffer+PACKET_SIZE);        
+        data_packet.setPayload(buffer, data_packet_size); // array to vector         
+        data_packet.setSeq(total_sent_bytes); // seq#
+        total_sent_bytes += data_packet_size;
+        cout << "total_sent_bytes : " << total_sent_bytes << endl;
+    
+        data_packet.encode(); // header n data packet -> byte array
+        sendto(m_server_fd, data_packet.getPacket(), data_packet.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);                
+        data_packet.free_m_packet();
+    }
+
+    // all data packets succesfully sent -> FIN
+    Packet fin_packet = Packet(0,0,0,0,0,1);
+    sendto(m_server_fd, fin_packet.getPacket(), fin_packet.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);                
+    fin_packet.free_m_packet();
+}
+
 // void TCP_Server::TCP_send(int client_socket_fd, Packet pkt){
 //     // given int fd, find corresponding clientinfo + tcp status
 //     sockaddr_in client_info = client_fd_map[client_socket_fd];    
@@ -181,17 +283,10 @@ Tahoe congestion control - elastic sliding window
 //     sendto(m_server_fd, pkt.m_packet, MSS, 0, (struct sockaddr *)&m_client_info, m_client_len);
 // }
 
-// void TCP_Server::TCP_recv(){
-
-// }
-
 
 // testing any of above code snippets
 // rmb to delete before production !!!
 void TCP_Server::test(){
-
-    
-
     
     // int flags = fcntl(m_server_fd, F_GETFL);    
     // fcntl(m_server_fd, F_SETFL, flags |= O_NONBLOCK);
