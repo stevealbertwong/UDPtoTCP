@@ -34,10 +34,22 @@ w network syscall that updates such data structure
 class TCP {
 
 protected:
+	struct packet_status{
+		Packet p; // free() when packet is ACKed by client
+		struct timeval m_time_sent; 
+    	bool m_sent = false;
+    	bool m_acked = false;
+	};
+
 	struct tcp_connection{ // fd
-		uint32_t seq_num; // uint32_t 1 more bit, prevent overflow
-		uint32_t ack_num;
-		uint32_t window_size;
+		uint32_t m_seq_num; // uint32_t 1 more bit, prevent overflow
+		uint32_t m_ack_num;		
+		uint32_t m_duplicate_ACKs;
+
+		float m_cwnd; // Tahoe computed server congestion window
+		uint16_t m_client_window = START_WINDOW/PACKET_SIZE; 
+		uint32_t m_remain_data_packets; // size of vector of data packets
+		ssize_t m_current_window; // no. packets client send per round
 
 		struct sockaddr_in m_sockaddr;
 		socklen_t m_socklen = sizeof(m_sockaddr);
@@ -45,6 +57,7 @@ protected:
 		
 		uint16_t m_port;
 		std::string m_filename;
+		std::vector<packet_status> m_data_packets; // Tahoe retransmit
 	};
 	std::vector<tcp_connection> *connections; // int fd -> random access	
 	
@@ -119,6 +132,7 @@ public:
 	int TCP_accept();
 	void TCP_recv();
 	void TCP_send(const char* filename);
+	void test_send(const char* filename);
 	
 	// helper		
 	void send_SYN_ACK(sockaddr_in m_client_info);	
@@ -159,6 +173,7 @@ public:
 	void test();
 	int TCP_connect();
 	void TCP_recv();
+	void test_recv();
 	void TCP_send();
 
 	// helper

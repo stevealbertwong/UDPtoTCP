@@ -8,7 +8,7 @@ TODO: now only encode header not yet encode header + data
 // socket stream -> packet struct
 Packet::Packet(char *byte_array, uint32_t recv_size){	
 	m_encoded_size = recv_size; //  need recv_size from recv_from(), ptr no size
-	m_packet = new uint8_t(m_encoded_size);
+	m_packet = new uint8_t[m_encoded_size];
 	memset(m_packet, '\0', m_encoded_size);	
 
 	memcpy(m_packet, byte_array, m_encoded_size);
@@ -28,11 +28,6 @@ Packet::Packet(char *byte_array, uint32_t recv_size){
 	// m_payload.clear();			
 	// memcpy(&m_payload[0], byte_array + sizeof(m_header), recv_size - sizeof(m_header)); // bug			
 	
-
-	// std::vector<uint8_t>::iterator it;	
-	// for(it = m_payload.begin(); it < m_payload.end(); it++){
-	// 	cout << "m_payload : " << *it<< endl;}	
-
 	// debug();
 }
 
@@ -58,7 +53,7 @@ uint8_t *Packet::encode(){
 	m_encoded_size = sizeof(m_header) + m_payload.size(); // header is fixed 8 bytes
 	cout << "m_encoded_size : " << m_encoded_size << endl; 
 	
-	m_packet = new uint8_t(m_encoded_size);
+	m_packet = new uint8_t[m_encoded_size];
 	memset(m_packet, '\0', m_encoded_size);	// null terminate byte array 
 
 	memcpy(m_packet, &m_header, sizeof(m_header)); // struct to byte array
@@ -79,12 +74,12 @@ void Packet::debug(){
 	
 }
 
-// Packet::Packet(const Packet& rhs){ // copy constructor, deep copy
-// 	m_header = rhs.m_header;
-// 	m_payload = rhs.m_payload;
-// 	m_packet = new uint8_t[rhs.m_encoded_size];
-// 	memcpy(&m_packet, rhs.m_packet, rhs.m_encoded_size); 
-// }
+Packet::Packet(const Packet& rhs){ // copy constructor, deep copy
+	m_header = rhs.m_header;
+	m_payload = rhs.m_payload;
+	m_packet = new uint8_t[rhs.m_encoded_size];
+	memcpy(&m_packet, rhs.m_packet, rhs.m_encoded_size); 
+}
 
 // Packet::Packet(Packet&& rhs){ // move constructor, shallow copy
 // 	// like std::move() -> convert lvalue to rvalue
@@ -96,9 +91,22 @@ void Packet::debug(){
 // }
 
 // Packet& Packet::operator=(const Packet& rhs){ // assignment, copy to existing packet
-// 	this->m_header = rhs.m_header;
-// 	this->m_payload = rhs.m_payload;
-// 	memcpy(this->m_packet, rhs.m_packet, rhs.m_encoded_size); 	
+// 	if(this != &rhs){
+// 		this->m_header = rhs.m_header;
+// 		this->m_payload = rhs.m_payload;
+// 			// Do the deep copy of encoded data
+// 		if(rhs.m_packet){
+// 			if(this->m_packet) { 
+// 				delete[] this->m_packet;
+// 				this->m_packet = nullptr;
+// 			}
+// 			this->m_packet = new uint8_t[m_encoded_size];
+// 			memcpy(this->m_packet, rhs.m_packet, rhs.m_encoded_size); 	
+// 			// for(ssize_t i = 0; i < m_encoded_size; i++){
+// 			// 	m_packet[i] = rhs.m_packet[i];
+// 			// }
+// 		}
+// 	}	
 // 	return *this; // lhs
 // }
 
@@ -108,9 +116,8 @@ PACKET HAS BEEN PASSED AS COPY IN OTHER FUNCTION SO ALREADY FREED
 SOLUTION: RULE OF 3 -> WHEN PACKET PASSED IN FUNCTION AS ARG -> DEEP COPY
 */
 Packet::~Packet(){
-
-
 	// if(m_packet){		
 	// 	delete []m_packet;
+	// 	m_packet = nullptr;
 	// }
 }

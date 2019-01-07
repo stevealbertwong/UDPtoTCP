@@ -187,11 +187,21 @@ int TCP_Server::TCP_accept(){
             malloc() data packet only when send, free() when ACKed
         packet constructor
             memcpy() data packet to byte array, X c-style typecast
-        reconstruct back
-            parse data from byte array
-            append back to a file
+        reconstruct file
+            rearrange in order according to seq#
+                priority_queue vs map -> always sorted
+                    map instead of priority queue when keep a list of struct sorted
+                    take a hit in performance in insert(), but quicker when iterate()
+                vector -> later call sort()                
+            parse data from byte array            
+            << back to a file -> write() will overwrite 
+        ACK ack#, resend ACK/data packet
+            buffer not in sequence packets
+            when receive new packet in sequence, update new ack#
 
     fixed sliding window + selective retranmit/repeat
+        
+
     timer 
         self implemented timer
             gettimeofday()            
@@ -226,10 +236,83 @@ int TCP_Server::TCP_accept(){
                 retransmit that lost packet
             
 3. Reno -> elastic sliding window + ssthresh + 3 dup ACKs
-
 */
 
+/* pseudo code 
+
+vector<packet_status> m_data_packets <- main stuct for TCP_send()
+ 
+update_data_packets(ifstream file);
+send new m_data_packets !!
+
+while loop checking if receive client's ACK    
+    if no:
+        for loop m_data_packets to check timeout
+            update tahoe_mode, ssthresh, cwnd, dup_packet_count            
+            retransmit packet + restart timer !!            
+        break 
+
+    if yes: -> SS/CA
+        if old ACK:
+            update tahoe_mode, ssthresh, cwnd, dup_packet_count            
+            if 3 dup ACKs:
+                retransmit ack# packet !!
+        if new ACK:
+            update tahoe_mode, ssthresh, cwnd, dup_packet_count            
+            update_data_packets(ifstream file)
+                erase ACKed packets, fill w new data packets            
+            send new m_data_packets !!
+*/
 void TCP_Server::TCP_send(const char* filename){
+
+    std::ifstream file(filename);
+    file.seekg(0, file.end); 
+    uint32_t total_file_bytes = file.tellg(); // current stream cursor position
+    file.seekg(0, file.beg); 
+
+    int total_data_packets = ceil((float)total_file_bytes/PACKET_SIZE);    
+    int ack = 0; // last ACK received
+    int seq = 0; // last data segment sent
+    ssize_t total_sent_bytes = 0;
+    
+    // 1: cwnd size vector storing data packets
+    // 2: SS vs CA when receive ACK
+
+    for(int i = 0; i < total_data_packets; i++){
+                
+        ssize_t remain_bytes = total_file_bytes - file.tellg(); // total bytes - cursor 
+        
+        // might not enough data to fill last data packet 
+        ssize_t data_packet_size;
+        
+        if(remain_bytes < PACKET_SIZE){ 
+            data_packet_size = remain_bytes;
+        } else {      
+            data_packet_size = PACKET_SIZE;
+        }
+        
+        char buffer[data_packet_size];
+        file.read(buffer, data_packet_size); // EACH READ(), CURSOR IS ADVANCED
+        cout << "file buffer : " << buffer << endl;
+        Packet data_packet = Packet(0,0,0,0,0,0); // init header to 0                                    
+        // data_packet.m_payload = std::vector<uint8_t>(buffer, buffer+PACKET_SIZE);        
+        data_packet.setPayload(buffer, data_packet_size); // array to vector         
+        data_packet.setSeq(total_sent_bytes); // seq#
+        total_sent_bytes += data_packet_size;
+        cout << "total_sent_bytes : " << total_sent_bytes << endl;
+    
+        data_packet.encode(); // header n data packet -> byte array
+        sendto(m_server_fd, data_packet.getPacket(), data_packet.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);                
+        data_packet.free_m_packet();
+    }
+
+    // all data packets succesfully sent -> FIN
+    Packet fin_packet = Packet(0,0,0,0,0,1);
+    sendto(m_server_fd, fin_packet.getPacket(), fin_packet.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);                
+    fin_packet.free_m_packet();
+}
+
+void TCP_Server::test_send(const char* filename){
 
     std::ifstream file(filename);
     file.seekg(0, file.end); 
@@ -274,14 +357,6 @@ void TCP_Server::TCP_send(const char* filename){
     sendto(m_server_fd, fin_packet.getPacket(), fin_packet.getEncodedSize(), 0, (struct sockaddr *)&m_client_info, m_client_len);                
     fin_packet.free_m_packet();
 }
-
-// void TCP_Server::TCP_send(int client_socket_fd, Packet pkt){
-//     // given int fd, find corresponding clientinfo + tcp status
-//     sockaddr_in client_info = client_fd_map[client_socket_fd];    
-//     memset(m_send_buffer, '\0', sizeof(m_send_buffer));
-//     memcpy(m_send_buffer, byte_array, sizeof(Packet));
-//     sendto(m_server_fd, pkt.m_packet, MSS, 0, (struct sockaddr *)&m_client_info, m_client_len);
-// }
 
 
 // testing any of above code snippets

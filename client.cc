@@ -9,7 +9,7 @@ int main(int argc, char const *argv[])
 	
 	int fd = tcpclient->TCP_connect();
 	// tcpclient->TCP_recv(fd, "file.txt"); // receive from server, save as file.txt
-	tcpclient->TCP_recv(); 
+	tcpclient->test_recv(); 
 
 	delete tcpclient;
 	return 0;

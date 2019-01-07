@@ -163,7 +163,7 @@ int TCP_Client::TCP_connect(){
                     take a hit in performance in insert(), but quicker when iterate()
                 vector -> later call sort()                
             parse data from byte array            
-            append back to a file
+            << back to a file -> write() will overwrite 
         ACK ack#, resend ACK/data packet
             buffer not in sequence packets
             when receive new packet in sequence, update new ack#
@@ -205,7 +205,67 @@ int TCP_Client::TCP_connect(){
 3. Reno -> elastic sliding window + ssthresh + 3 dup ACKs
 */
 
+/* pseudo code
+
+while loop check if receive server packet
+    if data packet
+        if in sequence packet
+            write to file
+            write in sequence packets in buffer to file
+        if NOT
+            add to vector<Packet> buffer
+        send ACK
+
+    if FIN packet
+        free() tcp_connection, fd
+        break while loop
+                
+*/
 void TCP_Client::TCP_recv(){
+    // receive + rearrange packets in order + reconstruct file
+    
+    while(1){ // break if timeout or FIN packet
+        // each loop 1 packet
+        memset(m_recv_buffer, '\0', sizeof(m_recv_buffer));
+        uint32_t recv_size = recvfrom(m_server_fd, m_recv_buffer, MSS, 0, (struct sockaddr *)&m_server_info, &m_server_len);
+        cout << "recv_size : " << recv_size << endl;        
+        // parse seq# n data from m_recv_buffer -> sorted map
+        Packet recvd_pkt = Packet(m_recv_buffer, recv_size);        
+        
+        if(recvd_pkt.getFlag() == 1){ break; } // FIN
+
+        uint16_t seq = recvd_pkt.getSeq();
+        cout << "seq no : " << seq << endl;
+        // packets_in_sequence.insert(pair<uint16_t, Packet>(seq, recvd_pkt));        
+        packets_in_sequence[seq] = recvd_pkt;
+        cout << "loop" << endl;
+        // recvd_pkt.free_m_packet(); // don't free otherwise map will segfault
+    }
+    
+    // iterate through sorted map -> ofstream write()
+    // ofstream output_file("received_filed.data", std::ofstream::out | std::ofstream::app);
+    ofstream output_file("received_filed.data");
+    for(auto i = packets_in_sequence.begin(); i != packets_in_sequence.end(); i++){
+        vector<uint8_t> v = i->second.m_payload;
+        for(vector<uint8_t>::iterator it = v.begin(); it!=v.end(); it++){
+            // cout << *it << endl;
+            output_file << *it;
+        }
+
+        // for(ssize_t i = 0; i < v.size(); i++){
+        //     output_file << v.at(i);
+        // }
+        // output_file.write((char *)&v[0], i->second.m_payload.size()); // EACH WRITE() CURSOR IS ADVANCED
+    }
+
+    cout << "packets_in_sequence.size() : " << packets_in_sequence.size() << endl;
+
+    // for(ssize_t i = 0; i < data_size; i++){
+    //     outputFile << m_payload->at(i);
+    // }   
+}
+
+void TCP_Client::test_recv(){
     // receive + rearrange packets in order + reconstruct file
     
     while(1){ // break if timeout or FIN packet
@@ -250,25 +310,6 @@ void TCP_Client::TCP_recv(){
    
 }
 
-// bool TCP_Client::TCP_recv(){
-//     // timeout + retransmit
-//     memset(m_recv_buffer, '\0', sizeof(m_recv_buffer));
-//     ssize_t recv_size = recvfrom(m_server_fd, m_recv_buffer, MSS, 0, (struct sockaddr *)&m_server_info, &m_server_len);
-//     if(recv_size == -1){ // if timeout
-//         // We have timed out based on the set timer on the socket        
-//         if(errno == EWOULDBLOCK){
-//         }
-//         return false; 
-//     } else { // check whether expected packet
-//     }
-//     return true;
-// }
-
-// void TCP_Client::TCP_send(uint8_t byte_array){
-//     memset(m_send_buffer, '\0', sizeof(m_send_buffer));
-//     memcpy(m_send_buffer, byte_array, sizeof(Packet));
-//     sendto(m_server_fd, m_send_buffer, MSS, 0, (struct sockaddr *)&m_server_info, m_server_len);
-// }
 
 void TCP_Client::test(){
     char data[] = "testing";

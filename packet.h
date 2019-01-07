@@ -29,7 +29,7 @@ public:
 	Packet(uint16_t seq, uint16_t ack, uint16_t win, bool syn_flag, bool ack_flag, bool fin_flag); // construct ACK, SYN, FIN packet 
 	Packet(uint16_t seq, uint16_t ack, uint16_t win, std::vector<uint8_t> m_payload); // construct data packet
 	Packet(char *byte_array, uint32_t recv_size); // byte array initialization	
-	// Packet(const Packet& rhs); // copy constructor, deep copy
+	Packet(const Packet& rhs); // copy constructor, deep copy
 	// Packet(Packet&& rhs); // move constructor, shallow copy
 	// Packet& operator=(const Packet& rhs); // assignment, copy to existing packet
 	~Packet();
