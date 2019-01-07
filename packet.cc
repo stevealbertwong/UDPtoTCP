@@ -77,8 +77,12 @@ void Packet::debug(){
 Packet::Packet(const Packet& rhs){ // copy constructor, deep copy
 	m_header = rhs.m_header;
 	m_payload = rhs.m_payload;
+	m_encoded_size = rhs.m_encoded_size;
 	m_packet = new uint8_t[rhs.m_encoded_size];
-	memcpy(&m_packet, rhs.m_packet, rhs.m_encoded_size); 
+	// memcpy(&m_packet, rhs.m_packet, rhs.m_encoded_size); 
+	for(ssize_t i = 0; i < m_encoded_size; i++){
+        m_packet[i] = rhs.m_packet[i];
+    }
 }
 
 // Packet::Packet(Packet&& rhs){ // move constructor, shallow copy
@@ -90,34 +94,34 @@ Packet::Packet(const Packet& rhs){ // copy constructor, deep copy
 // 	rhs.m_packet = nullptr; // DONT free "moved" pointer !!
 // }
 
-// Packet& Packet::operator=(const Packet& rhs){ // assignment, copy to existing packet
-// 	if(this != &rhs){
-// 		this->m_header = rhs.m_header;
-// 		this->m_payload = rhs.m_payload;
-// 			// Do the deep copy of encoded data
-// 		if(rhs.m_packet){
-// 			if(this->m_packet) { 
-// 				delete[] this->m_packet;
-// 				this->m_packet = nullptr;
-// 			}
-// 			this->m_packet = new uint8_t[m_encoded_size];
-// 			memcpy(this->m_packet, rhs.m_packet, rhs.m_encoded_size); 	
-// 			// for(ssize_t i = 0; i < m_encoded_size; i++){
-// 			// 	m_packet[i] = rhs.m_packet[i];
-// 			// }
-// 		}
-// 	}	
-// 	return *this; // lhs
-// }
+Packet& Packet::operator=(const Packet& rhs){ // assignment, copy to existing packet
+	if(this != &rhs){
+		this->m_header = rhs.m_header;
+		this->m_payload = rhs.m_payload;
+		if(rhs.m_packet){
+			if(this->m_packet) { 
+				delete[] this->m_packet;
+				this->m_packet = nullptr;
+			}
+			this->m_packet = new uint8_t[m_encoded_size];
+			// memcpy(this->m_packet, rhs.m_packet, rhs.m_encoded_size); 	
+			for(ssize_t i = 0; i < m_encoded_size; i++){
+				m_packet[i] = rhs.m_packet[i];
+			}
+		}
+	}	
+	return *this; // lhs
+}
 
+ 
 /*
-CANNOT FREE HERE 
+BEWARE OF DOUBLE FREE BUG !!
 PACKET HAS BEEN PASSED AS COPY IN OTHER FUNCTION SO ALREADY FREED
 SOLUTION: RULE OF 3 -> WHEN PACKET PASSED IN FUNCTION AS ARG -> DEEP COPY
 */
 Packet::~Packet(){
-	// if(m_packet){		
-	// 	delete []m_packet;
-	// 	m_packet = nullptr;
-	// }
+	if(m_packet){		
+		delete []m_packet;
+		m_packet = nullptr; // KEY TO PREVENT FREE TWICE
+	}
 }

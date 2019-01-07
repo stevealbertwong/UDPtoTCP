@@ -31,7 +31,7 @@ public:
 	Packet(char *byte_array, uint32_t recv_size); // byte array initialization	
 	Packet(const Packet& rhs); // copy constructor, deep copy
 	// Packet(Packet&& rhs); // move constructor, shallow copy
-	// Packet& operator=(const Packet& rhs); // assignment, copy to existing packet
+	Packet& operator=(const Packet& rhs); // assignment, copy to existing packet
 	~Packet();
 	
 	uint16_t getSeq() {return m_header.seq;}
@@ -45,7 +45,12 @@ public:
 	// partitioned file stream -> packet struct's payload
 	void setPayload(char *data, ssize_t size) {m_payload = std::vector<uint8_t>(data, data+size);};
 	
-	void free_m_packet() {delete[] m_packet;}
+	void free_m_packet() {
+		if(m_packet){		
+			delete []m_packet;
+			m_packet = nullptr; // KEY TO PREVENT FREE TWICE
+		}
+	}
 	uint8_t *encode(); // append m_payload to m_header, then typecast char* to uint8* 	
 	void debug();
 

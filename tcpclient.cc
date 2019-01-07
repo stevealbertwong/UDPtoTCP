@@ -237,7 +237,8 @@ void TCP_Client::TCP_recv(){
         uint16_t seq = recvd_pkt.getSeq();
         cout << "seq no : " << seq << endl;
         // packets_in_sequence.insert(pair<uint16_t, Packet>(seq, recvd_pkt));        
-        packets_in_sequence[seq] = recvd_pkt;
+        packets_in_sequence.insert(make_pair(seq, recvd_pkt.m_payload));        
+        // packets_in_sequence[seq] = recvd_pkt;
         cout << "loop" << endl;
         // recvd_pkt.free_m_packet(); // don't free otherwise map will segfault
     }
@@ -246,7 +247,8 @@ void TCP_Client::TCP_recv(){
     // ofstream output_file("received_filed.data", std::ofstream::out | std::ofstream::app);
     ofstream output_file("received_filed.data");
     for(auto i = packets_in_sequence.begin(); i != packets_in_sequence.end(); i++){
-        vector<uint8_t> v = i->second.m_payload;
+        // vector<uint8_t> v = i->second.m_payload;
+        vector<uint8_t> v = i->second;
         for(vector<uint8_t>::iterator it = v.begin(); it!=v.end(); it++){
             // cout << *it << endl;
             output_file << *it;
@@ -280,17 +282,18 @@ void TCP_Client::test_recv(){
 
         uint16_t seq = recvd_pkt.getSeq();
         cout << "seq no : " << seq << endl;
-        // packets_in_sequence.insert(pair<uint16_t, Packet>(seq, recvd_pkt));        
-        packets_in_sequence[seq] = recvd_pkt;
+        // packets_in_sequence.insert(pair<uint16_t, vector<uint8_t>> (seq, recvd_pkt.m_payload));        
+        // packets_in_sequence.insert(make_pair(seq, recvd_pkt.m_payload));        
+        packets_in_sequence[seq] = recvd_pkt.m_payload;
         cout << "loop" << endl;
-        // recvd_pkt.free_m_packet(); // don't free otherwise map will segfault
+        recvd_pkt.free_m_packet(); // don't free otherwise map will segfault
     }
     
     // iterate through sorted map -> ofstream write()
     // ofstream output_file("received_filed.data", std::ofstream::out | std::ofstream::app);
     ofstream output_file("received_filed.data");
     for(auto i = packets_in_sequence.begin(); i != packets_in_sequence.end(); i++){
-        vector<uint8_t> v = i->second.m_payload;
+        vector<uint8_t> v = i->second;
         for(vector<uint8_t>::iterator it = v.begin(); it!=v.end(); it++){
             // cout << *it << endl;
             output_file << *it;

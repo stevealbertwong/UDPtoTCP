@@ -20,6 +20,8 @@
         "unordered_map": "cpp",
         "iosfwd": "cpp",
         "iostream": "cpp",
-        "ostream": "cpp"
+        "ostream": "cpp",
+        "map": "cpp",
+        "utility": "cpp"
     }
 }

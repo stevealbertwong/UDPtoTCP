@@ -186,7 +186,7 @@ public:
 	int get_socket_fd() const { return m_server_fd; }
 	std::string getm_server_ip() const { return m_server_ip; }
 
-	std::map<uint16_t, Packet> packets_in_sequence;
+	std::map<uint16_t, vector<uint8_t>> packets_in_sequence;
 };
 
 #endif // TCP_H
